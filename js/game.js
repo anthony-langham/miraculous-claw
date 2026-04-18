@@ -445,6 +445,11 @@ function draw() {
         return;
     }
 
+    if (state === STATE.VICTORY) {
+        hud.drawVictory(ctx, W, H, getTotalScore(), frame);
+        return;
+    }
+
     drawBackground(ctx, currentLevel, cameraX, W, H);
 
     ctx.save();
@@ -563,8 +568,6 @@ function draw() {
         hud.drawLevelIntro(ctx, W, H, LEVELS[currentLevel].name, currentLevel + 1, frame);
     } else if (state === STATE.GAME_OVER) {
         hud.drawGameOver(ctx, W, H, getTotalScore(), frame);
-    } else if (state === STATE.VICTORY) {
-        hud.drawVictory(ctx, W, H, getTotalScore(), frame);
     }
 }
 
