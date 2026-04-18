@@ -196,7 +196,12 @@ export class HUD {
     }
 
     drawVictory(ctx, w, h, score, frame) {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        // Reset all canvas state to be safe
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalAlpha = 1;
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
         ctx.fillRect(0, 0, w, h);
 
         const bob = Math.sin(frame * 0.05) * 3;
@@ -212,7 +217,7 @@ export class HUD {
         }
 
         // Big ladybug drawing in the center
-        this._drawBigLadybug(ctx, w / 2, 200 + bob, frame);
+        this._drawBigLadybug(ctx, w / 2, 180 + bob, frame);
 
         // CONGRATULATIONS
         ctx.fillStyle = '#FFD700';
@@ -256,6 +261,8 @@ export class HUD {
             ctx.font = '14px monospace';
             ctx.fillText('Press SPACE to Play Again', w / 2, 700);
         }
+
+        ctx.restore(); // matches the save at top of drawVictory
     }
 
     _drawBigLadybug(ctx, x, y, frame) {

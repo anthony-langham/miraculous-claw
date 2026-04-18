@@ -13,10 +13,10 @@ const H = canvas.height;
 const youtubeBtn = document.getElementById('youtube-btn');
 const playagainBtn = document.getElementById('playagain-btn');
 
-playagainBtn.addEventListener('click', () => {
-    playagainBtn.style.display = 'none';
-    youtubeBtn.style.display = 'none';
-    resetGame();
+let playAgainClicked = false;
+playagainBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    playAgainClicked = true;
 });
 
 const STATE = {
@@ -204,11 +204,12 @@ function update() {
             break;
 
         case STATE.VICTORY:
-            if (input.isJustPressed('Space')) {
-                state = STATE.TITLE;
-                audio.stopMusic();
+            if (input.isJustPressed('Space') || playAgainClicked) {
+                playAgainClicked = false;
                 youtubeBtn.style.display = 'none';
                 playagainBtn.style.display = 'none';
+                audio.stopMusic();
+                resetGame();
             }
             break;
     }
