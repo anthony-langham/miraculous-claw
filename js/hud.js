@@ -216,46 +216,46 @@ export class HUD {
             ctx.fill();
         }
 
-        // Big ladybug drawing in the center
-        this._drawBigLadybug(ctx, w / 2, 180 + bob, frame);
+        // Big ladybug drawing at the top
+        this._drawBigLadybug(ctx, w / 2, 140 + bob, frame);
 
         // CONGRATULATIONS
         ctx.fillStyle = '#FFD700';
-        ctx.font = 'bold 56px monospace';
+        ctx.font = 'bold 52px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText('CONGRATULATIONS!', w / 2, 370 + bob);
+        ctx.fillText('CONGRATULATIONS!', w / 2, 310 + bob);
+
+        // Paris is Saved
+        ctx.fillStyle = '#FFF';
+        ctx.font = 'bold 22px monospace';
+        ctx.fillText('Paris is Saved!', w / 2, 350 + bob);
 
         // MIRACULOUS
         ctx.fillStyle = '#E53935';
-        ctx.font = 'bold 40px monospace';
-        ctx.fillText('MIRACULOUS!', w / 2, 420 + bob);
-
-        // Heroes
-        ctx.fillStyle = '#E53935';
-        ctx.font = 'bold 24px monospace';
-        ctx.fillText('Ladybug', w / 2 - 130, 470 + bob);
-        ctx.fillStyle = '#FF80AB';
-        ctx.font = 'bold 20px monospace';
-        ctx.fillText('&', w / 2, 470 + bob);
-        ctx.fillStyle = '#4CAF50';
-        ctx.font = 'bold 24px monospace';
-        ctx.fillText('Cat Noir', w / 2 + 130, 470 + bob);
-
-        ctx.fillStyle = '#FFF';
-        ctx.font = 'bold 22px monospace';
-        ctx.fillText('Paris is Saved!', w / 2, 510 + bob);
+        ctx.font = 'bold 36px monospace';
+        ctx.fillText('MIRACULOUS!', w / 2, 400 + bob);
 
         // Score
         ctx.fillStyle = '#FFD700';
-        ctx.font = 'bold 26px monospace';
-        ctx.fillText('Final Score: ' + score, w / 2, 555);
+        ctx.font = 'bold 24px monospace';
+        ctx.fillText('Final Score: ' + score, w / 2, 450);
 
-        // Watch Miraculous prompt
+        // Created by
         ctx.fillStyle = '#FF80AB';
-        ctx.font = 'bold 18px monospace';
-        ctx.fillText('Want more Miraculous?', w / 2, 600);
+        ctx.font = 'bold 16px monospace';
+        ctx.fillText('Created by', w / 2, 510);
 
-        // Play again
+        ctx.fillStyle = '#E53935';
+        ctx.font = 'bold 26px monospace';
+        ctx.fillText('Marnie', w / 2 - 110, 545);
+        ctx.fillStyle = '#FF80AB';
+        ctx.font = 'bold 20px monospace';
+        ctx.fillText('&', w / 2, 545);
+        ctx.fillStyle = '#4CAF50';
+        ctx.font = 'bold 26px monospace';
+        ctx.fillText('Anthony', w / 2 + 110, 545);
+
+        // Play again hint
         if (Math.floor(frame / 30) % 2 === 0) {
             ctx.fillStyle = 'rgba(255,255,255,0.5)';
             ctx.font = '14px monospace';

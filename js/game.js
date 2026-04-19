@@ -11,13 +11,6 @@ const ctx = canvas.getContext('2d');
 const W = canvas.width;
 const H = canvas.height;
 const youtubeBtn = document.getElementById('youtube-btn');
-const playagainBtn = document.getElementById('playagain-btn');
-
-let playAgainClicked = false;
-playagainBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    playAgainClicked = true;
-});
 
 const STATE = {
     TITLE: 'title',
@@ -188,7 +181,6 @@ function update() {
                     audio.stopMusic();
                     audio.playVictory();
                     youtubeBtn.style.display = 'block';
-                    playagainBtn.style.display = 'block';
                 } else {
                     state = STATE.LEVEL_INTRO;
                     stateTimer = 120;
@@ -204,10 +196,8 @@ function update() {
             break;
 
         case STATE.VICTORY:
-            if (input.isJustPressed('Space') || playAgainClicked) {
-                playAgainClicked = false;
+            if (input.isJustPressed('Space')) {
                 youtubeBtn.style.display = 'none';
-                playagainBtn.style.display = 'none';
                 audio.stopMusic();
                 resetGame();
             }
