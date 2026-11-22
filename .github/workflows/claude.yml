@@ -1,0 +1,146 @@
+name: Claude Code
+
+# Two jobs:
+#   claude — responds to @claude mentions in issues, PRs and review comments
+#   review — automatic PR review, ONCE per PR (not once per push)
+#
+# Cost discipline, and the reason this is not the naive setup: `synchronize`
+# is deliberately absent from the pull_request triggers. Reviewing on every
+# push means a PR that takes six iterations costs six complete Opus reviews,
+# and the later ones re-read code the earlier ones already cleared. One PR
+# here collected 6+ full reviews exactly that way. Review runs on open
+# instead; to re-review after changes, add the `needs-review` label or
+# comment "@claude re-review".
+#
+# Nearly every PR in this repo is authored on a `claude/*` branch, so that is
+# the normal path rather than an edge case — do NOT try to save money by
+# filtering those branches out, it would disable review altogether.
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+  pull_request_review:
+    types: [submitted]
+  pull_request:
+    types: [opened, reopened, ready_for_review, labeled]
+    # Docs-only PRs don't need a review. The @claude mention path is not
+    # path-filtered, so it stays available as an escape hatch.
+    #
+    # No `branches:` filter on purpose: it would silently skip review on
+    # stacked PRs, and a missing review is easy not to notice.
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - ".gitignore"
+      - "LICENSE"
+
+jobs:
+  # --- @claude mentions --------------------------------------------------
+  claude:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Queue rather than cancel: a mention is an explicit request to do work,
+    # and cancelling it mid-flight loses that work rather than saving any.
+    concurrency:
+      group: claude-mention-${{ github.event.issue.number || github.event.pull_request.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: "--model opus"
+          show_full_output: "true"
+
+  # --- Automatic PR review -----------------------------------------------
+  review:
+    # Skip drafts — a draft is by definition not ready to be reviewed. On
+    # `labeled`, only run for `needs-review`, or every label change would
+    # start a fresh review, which is worse than what it replaced.
+    if: |
+      github.event_name == 'pull_request' &&
+      !github.event.pull_request.draft &&
+      (github.event.action != 'labeled' || github.event.label.name == 'needs-review')
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # A superseding event cancels an in-flight review — no point finishing a
+    # review of a commit nobody is looking at any more.
+    concurrency:
+      group: claude-review-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      # Read is enough: the review comments, it does not push.
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Full history so the review can diff against the base branch.
+          fetch-depth: 0
+
+      - name: Run Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Review runs once per PR, so the top tier is affordable. If the
+          # allowance gets tight, `--model sonnet` is the lever to pull.
+          claude_args: "--model opus --allowedTools 'Bash(gh:*),Read,Glob,Grep'"
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+            Review PR #${{ github.event.pull_request.number }} following the guidelines in .github/prompts/review-prompt.md
+          # One comment, updated in place, instead of a new comment per run.
+          use_sticky_comment: "true"
+          show_full_output: "true"
+
+      # Makes `needs-review` a button rather than a state. GitHub fires
+      # `labeled` on the *add* event, not on the label being present, so a
+      # label left in place after a review can never trigger another one —
+      # you would have to remove and re-add it by hand. Clearing it here makes
+      # the next round one click: push fixes, add the label, repeat.
+      #
+      # always(), so a failed or cancelled review still clears and can be
+      # retried the same way. 404 is expected whenever the run came from
+      # `opened` rather than a label.
+      - name: Clear the re-review label
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              await github.rest.issues.removeLabel({
+                ...context.repo,
+                issue_number: context.issue.number,
+                name: "needs-review",
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
