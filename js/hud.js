@@ -177,27 +177,14 @@ export class HUD {
         ctx.beginPath(); ctx.arc(w / 2 + 144, 135 + bob, 3, 0, Math.PI * 2); ctx.fill();
 
         ctx.fillStyle = '#FF80AB';
-        ctx.font = this.touch ? '26px monospace' : '16px monospace';
-        ctx.fillText('Save Paris from the Akumas!', w / 2, this.touch ? 222 : 210);
+        ctx.font = this.touch ? '26px monospace' : '20px monospace';
+        ctx.fillText('Save Paris from the Akumas!', w / 2, 222);
 
-        // 2 Player callout
+        // The 1P / 2P menu is DOM (js/touch.js) and sits over the middle of this screen.
         if (!this.touch) {
-            ctx.fillStyle = '#4CAF50';
-            ctx.font = 'bold 14px monospace';
-            ctx.fillText('2 PLAYER CO-OP!', w / 2, 240);
-        }
-
-        if (!this.touch) {
-            if (Math.floor(frame / 30) % 2 === 0) {
-                ctx.fillStyle = '#FFF';
-                ctx.font = 'bold 20px monospace';
-                ctx.fillText('Press SPACE to Start!', w / 2, 310);
-            }
-
-            ctx.fillStyle = 'rgba(255,255,255,0.5)';
-            ctx.font = '11px monospace';
-            ctx.fillText('P1 Ladybug: Arrows + Right Shift', w / 2, 370);
-            ctx.fillText('P2 Cat Noir: WASD + F', w / 2, 388);
+            ctx.fillStyle = 'rgba(255,255,255,0.55)';
+            ctx.font = '13px monospace';
+            ctx.fillText('P1 Ladybug: Arrows + Right Shift      P2 Cat Noir: WASD + F', w / 2, 640);
         }
 
         if (cheatMode) {

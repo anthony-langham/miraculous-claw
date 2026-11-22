@@ -116,13 +116,31 @@ body.touch-ui canvas {
     display: flex;
 }
 
-#touch-controls:not([data-screen="title"]):not([data-screen="victory"]):not([data-paused="1"]) .tc-play {
+/* Joysticks, buttons, pause and rotate prompt are touch-only */
+#touch-controls.touch:not([data-screen="title"]):not([data-screen="victory"]):not([data-paused="1"]) .tc-play {
     display: block;
 }
 
-#touch-controls[data-screen="playing"]:not([data-paused="1"]) .tc-pause,
-#touch-controls[data-screen="level_intro"]:not([data-paused="1"]) .tc-pause {
+#touch-controls.touch[data-screen="playing"]:not([data-paused="1"]) .tc-pause,
+#touch-controls.touch[data-screen="level_intro"]:not([data-paused="1"]) .tc-pause {
     display: flex;
+}
+
+/* Phones: 1 player only (a tablet or computer is needed to share) */
+#touch-controls.phone .tc-menu-btn[data-players="2"] {
+    display: none;
+}
+
+.tc-menu-note {
+    display: none;
+    color: rgba(255, 255, 255, 0.75);
+    font-size: clamp(12px, calc(var(--cv-h) * 0.03), 18px);
+    text-align: center;
+}
+
+#touch-controls.phone .tc-note-phone,
+#touch-controls:not(.touch) .tc-note-keys {
+    display: block;
 }
 
 #touch-controls:not([data-players="2"]) .tc-p2 {
@@ -135,8 +153,13 @@ body.touch-ui canvas {
     left: var(--cv-left);
     width: var(--cv-w);
     top: calc(var(--cv-top) + var(--cv-h) * 0.36);
-    height: calc(var(--cv-h) * 0.3);
+    flex-direction: column;
     align-items: center;
+    gap: calc(var(--cv-h) * 0.035);
+}
+
+.tc-menu-row {
+    display: flex;
     justify-content: center;
     gap: calc(var(--cv-w) * 0.04);
 }
@@ -168,6 +191,16 @@ body.touch-ui canvas {
 .tc-menu-btn[data-players="2"] {
     background: #2E7D32;
     box-shadow: 0 6px 0 #14451A;
+}
+
+.tc-menu-btn.selected {
+    outline: 4px solid #FFF;
+    outline-offset: 4px;
+}
+
+#touch-controls.touch .tc-menu-btn.selected,
+#touch-controls.phone .tc-menu-btn.selected {
+    outline: none; /* the highlight is for keyboard/mouse; touch just taps */
 }
 
 .tc-menu-btn:active {
@@ -318,7 +351,7 @@ body.touch-ui canvas {
 }
 
 @media (orientation: portrait) and (max-width: 700px) {
-    #touch-controls.visible .tc-rotate {
+    #touch-controls.touch .tc-rotate {
         display: flex;
     }
 }

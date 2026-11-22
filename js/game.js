@@ -266,10 +266,15 @@ function update() {
                 audio.init();
                 audio.resume();
                 resetGame(n);
-            } else if (input.isJustPressed('Space')) {
-                audio.init();
-                audio.resume();
-                resetGame(2);
+            } else {
+                if (input.isJustPressed('ArrowLeft') || input.isJustPressed('KeyA') || input.isJustPressed('Digit1')) touch.moveSelection(-1);
+                if (input.isJustPressed('ArrowRight') || input.isJustPressed('KeyD') || input.isJustPressed('Digit2')) touch.moveSelection(1);
+                const quick = input.isJustPressed('Digit1') ? 1 : input.isJustPressed('Digit2') ? touch.selectedPlayers : 0;
+                if (quick || input.isJustPressed('Space') || input.isJustPressed('Enter')) {
+                    audio.init();
+                    audio.resume();
+                    resetGame(quick || touch.selectedPlayers);
+                }
             }
             break;
 

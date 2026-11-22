@@ -14,6 +14,13 @@ const KEYS = {
     catnoir: { left: 'KeyA', right: 'KeyD', up: 'KeyW', down: 'KeyS', attack: 'KeyF' },
 };
 
+/** A phone (not a tablet): too small for two kids to share, so 2-player is hidden. */
+export function isPhone() {
+    if (!isTouchDevice()) return false;
+    const shortSide = Math.min(window.screen.width, window.screen.height);
+    return shortSide < 600;
+}
+
 export function isTouchDevice() {
     return (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ||
         'ontouchstart' in window || navigator.maxTouchPoints > 0;
@@ -92,18 +99,22 @@ export class TouchControls {
         this.input = input;
         this.canvas = canvas;
         this.onShow = onShow;
-        this.visible = false;
+        this.touch = false;
 
         const root = document.createElement('div');
         root.id = 'touch-controls';
         root.innerHTML = `
             <div class="tc-menu">
-                <button class="tc-menu-btn" type="button" data-players="1">
-                    <span class="tc-menu-icons">🐞</span><span>1 PLAYER</span>
-                </button>
-                <button class="tc-menu-btn" type="button" data-players="2">
-                    <span class="tc-menu-icons">🐞🐾</span><span>2 PLAYERS</span>
-                </button>
+                <div class="tc-menu-row">
+                    <button class="tc-menu-btn" type="button" data-players="1">
+                        <span class="tc-menu-icons">🐞</span><span>1 PLAYER</span>
+                    </button>
+                    <button class="tc-menu-btn" type="button" data-players="2">
+                        <span class="tc-menu-icons">🐞🐾</span><span>2 PLAYERS</span>
+                    </button>
+                </div>
+                <div class="tc-menu-note tc-note-phone">2 players? Play on a tablet or computer!</div>
+                <div class="tc-menu-note tc-note-keys">← → to choose · SPACE to start</div>
             </div>
             <div class="tc-play">
                 <div class="tc-stick-zone tc-p1"><div class="tc-stick-base"><div class="tc-stick-thumb"></div></div></div>
@@ -119,6 +130,14 @@ export class TouchControls {
         `;
         document.body.appendChild(root);
         this.root = root;
+        this.phone = isPhone();
+        root.classList.toggle('phone', this.phone);
+        // Two players default on a tablet/computer (the co-op is the point); phones are 1P only.
+        this.selected = this.phone ? 1 : 2;
+        this.menuButtons = [...root.querySelectorAll('.tc-menu-btn')];
+        this._paintSelection();
+        // The menu shows on every device; joysticks/buttons only once touch is in use.
+        root.classList.add('visible');
 
         this.sticks = [
             new Stick(root.querySelector('.tc-stick-zone.tc-p1'), input, KEYS.ladybug),
@@ -129,9 +148,19 @@ export class TouchControls {
 
         for (const btn of root.querySelectorAll('.tc-menu-btn')) {
             // `click` (not pointerdown) so it counts as a user gesture for fullscreen + audio.
-            btn.addEventListener('click', () => {
-                requestFullscreenLandscape();
-                onStart?.(Number(btn.dataset.players));
+            btn.addEventListener('click', (e) => {
+                const n = Number(btn.dataset.players);
+                btn.blur(); // so a later SPACE press doesn't "click" it again
+                this.selected = n;
+                this._paintSelection();
+                if (e.pointerType !== 'mouse' && this.touch) requestFullscreenLandscape();
+                onStart?.(n);
+            });
+            btn.addEventListener('pointerenter', (e) => {
+                if (e.pointerType === 'mouse') {
+                    this.selected = Number(btn.dataset.players);
+                    this._paintSelection();
+                }
             });
         }
 
@@ -147,7 +176,7 @@ export class TouchControls {
         });
 
         document.addEventListener('contextmenu', (e) => {
-            if (this.visible) e.preventDefault();
+            if (this.touch) e.preventDefault();
         });
 
         // A touch on a laptop with a touchscreen reveals the controls on demand.
@@ -158,17 +187,35 @@ export class TouchControls {
         });
     }
 
-    /** Show the controls now if this is a touch device. Call once the game is set up. */
+    /** Show the touch controls now if this is a touch device. Call once the game is set up. */
     autoShow() {
         if (isTouchDevice()) this.show();
+        this.layout();
     }
 
     show() {
-        if (this.visible) return;
-        this.visible = true;
-        this.root.classList.add('visible');
+        if (this.touch) return;
+        this.touch = true;
+        this.root.classList.add('touch');
         this.onShow?.();
         this.layout();
+    }
+
+    /** Keyboard menu navigation: -1 / +1 moves the highlight between 1P and 2P. */
+    moveSelection(dir) {
+        if (this.phone) return;
+        this.selected = Math.min(2, Math.max(1, this.selected + dir));
+        this._paintSelection();
+    }
+
+    get selectedPlayers() {
+        return this.phone ? 1 : this.selected;
+    }
+
+    _paintSelection() {
+        for (const b of this.menuButtons) {
+            b.classList.toggle('selected', Number(b.dataset.players) === this.selected);
+        }
     }
 
     /** Track the canvas rectangle so menu/pause chrome lines up with the game art. */
