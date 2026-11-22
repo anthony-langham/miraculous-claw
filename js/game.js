@@ -1,4 +1,5 @@
 import { Input } from './input.js';
+import { TouchControls, isTouchDevice } from './touch.js';
 import { Player } from './player.js';
 import { Enemy } from './enemy.js';
 import { LEVELS, drawBackground } from './level.js';
@@ -8,9 +9,12 @@ import { Audio } from './audio.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-const W = canvas.width;
-const H = canvas.height;
+// Logical game resolution — all game code draws in this space; the backing store may be
+// larger (see fitCanvas) so shapes and text stay sharp on high-DPI phones.
+const W = 1280;
+const H = 720;
 const youtubeBtn = document.getElementById('youtube-btn');
+const IS_TOUCH = isTouchDevice();
 
 const STATE = {
     TITLE: 'title',
@@ -26,11 +30,101 @@ let currentLevel = 0;
 let frame = 0;
 let stateTimer = 0;
 let cameraX = 0;
+let numPlayers = 2;
+let paused = false;
+let pendingStart = 0; // set by the touch 1P/2P buttons, consumed in update()
 
 const input = new Input();
 const hud = new HUD();
 const particles = new ParticleSystem();
 const audio = new Audio();
+const touch = new TouchControls(input, canvas, {
+    onShow: () => { hud.touch = true; fitCanvas(); },
+    onStart: (n) => { pendingStart = n; },
+    onPause: () => togglePause(),
+});
+if (IS_TOUCH) hud.touch = true;
+
+// ---------- Canvas sizing / render resolution ----------
+const MAX_RENDER_SCALE = 2;
+let renderScale = 1;
+let qualityLocked = false; // set once we've dropped resolution for performance
+
+function fitCanvas() {
+    const touchUI = hud.touch;
+    const border = touchUI ? 0 : 8;
+    const vw = window.innerWidth - border;
+    const vh = window.innerHeight - border;
+    let fit = Math.min(vw / W, vh / H);
+    if (!touchUI) fit = Math.min(fit, 1); // desktop keeps its native size, only shrinks
+    const cssW = Math.floor(W * fit);
+    const cssH = Math.floor(H * fit);
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    document.body.classList.toggle('touch-ui', touchUI);
+
+    if (!qualityLocked) {
+        const dpr = window.devicePixelRatio || 1;
+        const want = Math.min(MAX_RENDER_SCALE, Math.max(1, (cssW * dpr) / W));
+        renderScale = Math.round(want * 4) / 4;
+    }
+    const bw = Math.round(W * renderScale);
+    const bh = Math.round(H * renderScale);
+    if (canvas.width !== bw || canvas.height !== bh) {
+        canvas.width = bw;
+        canvas.height = bh;
+    }
+    hud.renderScale = renderScale;
+    touch.layout();
+
+    // Phone turned to portrait: the rotate prompt covers the game, so pause it.
+    if (touchUI && window.innerHeight > window.innerWidth && window.innerWidth <= 700) {
+        setPaused(true);
+    }
+}
+window.addEventListener('resize', fitCanvas);
+window.addEventListener('orientationchange', () => setTimeout(fitCanvas, 250));
+document.addEventListener('fullscreenchange', fitCanvas);
+document.addEventListener('webkitfullscreenchange', fitCanvas);
+fitCanvas();
+
+// ---------- Audio unlock (iOS/Android only allow it inside a real user gesture) ----------
+function unlockAudio() {
+    audio.init();
+    audio.resume();
+}
+for (const ev of ['pointerup', 'touchend', 'click', 'keydown']) {
+    window.addEventListener(ev, unlockAudio, { capture: true, passive: true });
+}
+
+// ---------- Pause (button, P/Esc, and automatically when the app is backgrounded) ----------
+function canPause() {
+    return state === STATE.PLAYING || state === STATE.LEVEL_INTRO;
+}
+function setPaused(on) {
+    if (on && !canPause()) return;
+    if (paused === on) return;
+    paused = on;
+    if (audio.ctx) {
+        if (on) audio.ctx.suspend?.();
+        else audio.ctx.resume?.();
+    }
+}
+function togglePause() {
+    setPaused(!paused);
+}
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) setPaused(true);
+});
+window.addEventListener('pagehide', () => setPaused(true));
+touch.autoShow();
+
+// Light haptic feedback where supported (Android; iOS Safari ignores it).
+function buzz(pattern) {
+    if (hud.touch && navigator.vibrate) {
+        try { navigator.vibrate(pattern); } catch (e) { /* ignore */ }
+    }
+}
 
 let players = [];
 let enemies = [];
@@ -63,16 +157,16 @@ function initLevel(levelIndex) {
     const level = LEVELS[levelIndex];
 
     if (players.length === 0) {
-        players = [
-            new Player(100, 560, 'ladybug'),
-            new Player(150, 570, 'catnoir'),
-        ];
+        players = [new Player(100, 560, 'ladybug')];
+        if (numPlayers > 1) players.push(new Player(150, 570, 'catnoir'));
     }
 
     players[0].x = 100;
     players[0].y = 560;
-    players[1].x = 150;
-    players[1].y = 570;
+    if (players[1]) {
+        players[1].x = 150;
+        players[1].y = 570;
+    }
 
     for (const p of players) {
         p.attacking = false;
@@ -122,7 +216,10 @@ function initLevel(levelIndex) {
     audio.startMusic(levelIndex);
 }
 
-function resetGame() {
+function resetGame(n = numPlayers) {
+    numPlayers = n;
+    paused = false;
+    youtubeBtn.style.display = 'none';
     currentLevel = 0;
     players = [];
     enemies = [];
@@ -148,16 +245,36 @@ function getTotalScore() {
 
 function update() {
     input.update();
+
+    if (input.isJustPressed('KeyP') || input.isJustPressed('Escape')) togglePause();
+    if (paused) {
+        // Any tap / space resumes, so a kid who hits pause by accident isn't stuck.
+        if (input.isJustPressed('Tap') || input.isJustPressed('Space')) setPaused(false);
+        touch.sync(state, numPlayers, paused);
+        return;
+    }
+
     frame++;
     hud.update();
     particles.update();
 
     switch (state) {
         case STATE.TITLE:
-            if (input.isJustPressed('Space')) {
+            if (pendingStart) {
+                const n = pendingStart;
+                pendingStart = 0;
                 audio.init();
                 audio.resume();
-                resetGame();
+                resetGame(n);
+            } else {
+                if (input.isJustPressed('ArrowLeft') || input.isJustPressed('KeyA') || input.isJustPressed('Digit1')) touch.moveSelection(-1);
+                if (input.isJustPressed('ArrowRight') || input.isJustPressed('KeyD') || input.isJustPressed('Digit2')) touch.moveSelection(1);
+                const quick = input.isJustPressed('Digit1') ? 1 : input.isJustPressed('Digit2') ? touch.selectedPlayers : 0;
+                if (quick || input.isJustPressed('Space') || input.isJustPressed('Enter')) {
+                    audio.init();
+                    audio.resume();
+                    resetGame(quick || touch.selectedPlayers);
+                }
             }
             break;
 
@@ -190,19 +307,21 @@ function update() {
             break;
 
         case STATE.GAME_OVER:
-            if (input.isJustPressed('Space')) {
+            if (input.isJustPressed('Space') || input.isJustPressed('Tap')) {
                 resetGame();
             }
             break;
 
         case STATE.VICTORY:
-            if (input.isJustPressed('Space')) {
+            if (input.isJustPressed('Space') || input.isJustPressed('Tap')) {
                 youtubeBtn.style.display = 'none';
                 audio.stopMusic();
                 resetGame();
             }
             break;
     }
+
+    touch.sync(state, numPlayers, paused);
 }
 
 function updatePlaying() {
@@ -320,6 +439,7 @@ function updatePlaying() {
             if (enemy.canBePurified()) {
                 if (boxCollide(attackBox, hitBox)) {
                     enemy.purify();
+                    buzz(15);
                     const pts = enemy.type === 'timebreaker' ? 1000 : 100;
                     p.addScore(pts);
                     particles.emitPurify(enemy.x, enemy.y - 30);
@@ -355,6 +475,7 @@ function updatePlaying() {
                             particles.emitPurify(enemy.x, enemy.y - 30);
                         }
                         audio.playHit();
+                        buzz(10);
                         if (defeated) {
                             hud.showMessage('Attack to Purify!', 90, '#FF80AB');
                         }
@@ -384,6 +505,7 @@ function updatePlaying() {
                     if (p.takeDamage()) {
                         particles.emitDamage(p.x, p.y - 25);
                         audio.playDamage();
+                        buzz(60);
                     }
                 }
             }
@@ -427,6 +549,7 @@ function drawHeart(ctx, x, y, size, color) {
 }
 
 function draw() {
+    ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
     ctx.clearRect(0, 0, W, H);
 
     if (state === STATE.TITLE) {
@@ -559,12 +682,50 @@ function draw() {
     } else if (state === STATE.GAME_OVER) {
         hud.drawGameOver(ctx, W, H, getTotalScore(), frame);
     }
+
+    if (paused) hud.drawPaused(ctx, W, H);
 }
 
-function gameLoop() {
-    update();
+// Fixed 60 Hz simulation: the game logic is frame-counted, so without this it would run at
+// double speed on 120 Hz phones/iPads and slow-motion on throttled ones.
+const STEP = 1000 / 60;
+let lastTime = performance.now();
+let acc = 0;
+// Rolling frame-time sample used to drop render resolution on slow devices.
+let perfFrames = 0;
+let perfTime = 0;
+
+function gameLoop(now) {
+    let dt = now - lastTime;
+    lastTime = now;
+    if (dt > 250 || dt < 0) dt = STEP; // returning from background / clock hiccup
+
+    acc += dt;
+    let steps = 0;
+    while (acc >= STEP && steps < 4) {
+        update();
+        acc -= STEP;
+        steps++;
+    }
+    if (steps === 4) acc = 0; // way behind: drop the backlog rather than spiral
+
     draw();
+
+    if (!qualityLocked && renderScale > 1 && !paused) {
+        perfFrames++;
+        perfTime += dt;
+        if (perfFrames >= 180) {
+            if (perfTime / perfFrames > 22) { // can't hold ~45 fps: render at 1x
+                qualityLocked = true;
+                renderScale = 1;
+                fitCanvas();
+            }
+            perfFrames = 0;
+            perfTime = 0;
+        }
+    }
+
     requestAnimationFrame(gameLoop);
 }
 
-gameLoop();
+requestAnimationFrame(gameLoop);
