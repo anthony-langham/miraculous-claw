@@ -87,7 +87,7 @@ export class HUD {
         // Controls hint
         ctx.fillStyle = 'rgba(255,255,255,0.3)';
         ctx.font = '9px monospace';
-        ctx.fillText('ARROWS/R.SHIFT: Ladybug | WASD/F: Cat Noir', canvasWidth / 2, 38);
+        ctx.fillText(this.touch ? 'JOYSTICK/🐞: Ladybug | WASD/F: Cat Noir' : 'ARROWS/R.SHIFT: Ladybug | WASD/F: Cat Noir', canvasWidth / 2, 38);
 
         // Center message
         if (this.messageTimer > 0) {
@@ -160,12 +160,12 @@ export class HUD {
         if (Math.floor(frame / 30) % 2 === 0) {
             ctx.fillStyle = '#FFF';
             ctx.font = 'bold 20px monospace';
-            ctx.fillText('Press SPACE to Start!', w / 2, 310);
+            ctx.fillText(this.touch ? 'Tap to Start!' : 'Press SPACE to Start!', w / 2, 310);
         }
 
         ctx.fillStyle = 'rgba(255,255,255,0.5)';
         ctx.font = '11px monospace';
-        ctx.fillText('P1 Ladybug: Arrows + Right Shift', w / 2, 370);
+        ctx.fillText(this.touch ? 'P1 Ladybug: Joystick + Ladybug button' : 'P1 Ladybug: Arrows + Right Shift', w / 2, 370);
         ctx.fillText('P2 Cat Noir: WASD + F', w / 2, 388);
 
         if (cheatMode) {
@@ -191,7 +191,7 @@ export class HUD {
         if (Math.floor(frame / 30) % 2 === 0) {
             ctx.fillStyle = '#FFD700';
             ctx.font = 'bold 18px monospace';
-            ctx.fillText('Press SPACE to Try Again!', w / 2, 310);
+            ctx.fillText(this.touch ? 'Tap to Try Again!' : 'Press SPACE to Try Again!', w / 2, 310);
         }
     }
 
@@ -259,7 +259,7 @@ export class HUD {
         if (Math.floor(frame / 30) % 2 === 0) {
             ctx.fillStyle = 'rgba(255,255,255,0.5)';
             ctx.font = '14px monospace';
-            ctx.fillText('Press SPACE to Play Again', w / 2, 700);
+            ctx.fillText(this.touch ? 'Tap to Play Again' : 'Press SPACE to Play Again', w / 2, 700);
         }
 
         ctx.restore(); // matches the save at top of drawVictory

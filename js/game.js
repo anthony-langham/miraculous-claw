@@ -1,4 +1,5 @@
 import { Input } from './input.js';
+import { TouchControls } from './touch.js';
 import { Player } from './player.js';
 import { Enemy } from './enemy.js';
 import { LEVELS, drawBackground } from './level.js';
@@ -31,6 +32,7 @@ const input = new Input();
 const hud = new HUD();
 const particles = new ParticleSystem();
 const audio = new Audio();
+new TouchControls(input, canvas, () => { hud.touch = true; });
 
 let players = [];
 let enemies = [];
