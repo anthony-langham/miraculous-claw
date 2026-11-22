@@ -4,7 +4,13 @@
     box-sizing: border-box;
 }
 
+html, body {
+    overscroll-behavior: none; /* no pull-to-refresh / rubber-band mid-game */
+}
+
 body {
+    position: fixed;
+    inset: 0;
     background: #111;
     display: flex;
     justify-content: center;
@@ -32,9 +38,19 @@ canvas {
     border-radius: 4px;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
+    display: block;
     max-width: 100vw;
     max-height: 100vh;
     object-fit: contain;
+    touch-action: none;
+}
+
+/* Touch devices: edge-to-edge game, no decorative border (JS sizes the canvas to fit). */
+body.touch-ui canvas {
+    border: none;
+    border-radius: 0;
+    max-width: none;
+    max-height: none;
 }
 
 #youtube-btn {
@@ -67,26 +83,118 @@ canvas {
     display: none;
     position: fixed;
     inset: 0;
-    pointer-events: none; /* only the stick and button take touches; taps elsewhere hit the canvas */
+    pointer-events: none; /* only the controls take touches; taps elsewhere hit the canvas */
     z-index: 20;
+    font-family: monospace;
+    --cv-left: 0px;
+    --cv-top: 0px;
+    --cv-w: 100vw;
+    --cv-h: 100vh;
+    --edge-l: calc(env(safe-area-inset-left) + 10px);
+    --edge-r: calc(env(safe-area-inset-right) + 10px);
+    --edge-b: calc(env(safe-area-inset-bottom) + 10px);
 }
 
 #touch-controls.visible {
     display: block;
 }
 
+#touch-controls button {
+    font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* --- Which chrome shows on which screen --- */
+.tc-menu,
+.tc-play,
+.tc-pause,
+.tc-rotate {
+    display: none;
+}
+
+#touch-controls[data-screen="title"] .tc-menu {
+    display: flex;
+}
+
+#touch-controls:not([data-screen="title"]):not([data-screen="victory"]):not([data-paused="1"]) .tc-play {
+    display: block;
+}
+
+#touch-controls[data-screen="playing"]:not([data-paused="1"]) .tc-pause,
+#touch-controls[data-screen="level_intro"]:not([data-paused="1"]) .tc-pause {
+    display: flex;
+}
+
+#touch-controls:not([data-players="2"]) .tc-p2 {
+    display: none;
+}
+
+/* --- Title screen: 1 / 2 player buttons, centred on the canvas --- */
+.tc-menu {
+    position: absolute;
+    left: var(--cv-left);
+    width: var(--cv-w);
+    top: calc(var(--cv-top) + var(--cv-h) * 0.36);
+    height: calc(var(--cv-h) * 0.3);
+    align-items: center;
+    justify-content: center;
+    gap: calc(var(--cv-w) * 0.04);
+}
+
+.tc-menu-btn {
+    pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: max(130px, calc(var(--cv-w) * 0.22));
+    min-height: 88px;
+    height: calc(var(--cv-h) * 0.26);
+    padding: 8px 18px;
+    border-radius: 18px;
+    border: 3px solid #FFD700;
+    background: #E53935;
+    color: #FFF;
+    font-weight: bold;
+    font-size: clamp(15px, calc(var(--cv-h) * 0.05), 30px);
+    letter-spacing: 1px;
+    box-shadow: 0 6px 0 #8E1B18;
+    touch-action: manipulation;
+    cursor: pointer;
+    transition: transform 0.08s, box-shadow 0.08s;
+}
+
+.tc-menu-btn[data-players="2"] {
+    background: #2E7D32;
+    box-shadow: 0 6px 0 #14451A;
+}
+
+.tc-menu-btn:active {
+    transform: translateY(4px);
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+.tc-menu-icons {
+    font-size: 1.6em;
+    line-height: 1.1;
+}
+
+/* --- Joysticks --- */
 .tc-stick-zone {
     position: absolute;
-    left: calc(env(safe-area-inset-left) + 12px);
-    bottom: calc(env(safe-area-inset-bottom) + 12px);
-    width: 160px;
-    height: 160px;
+    bottom: var(--edge-b);
+    width: 150px;
+    height: 150px;
     display: flex;
     align-items: center;
     justify-content: center;
     pointer-events: auto;
     touch-action: none;
 }
+
+.tc-stick-zone.tc-p1 { left: var(--edge-l); }
+.tc-stick-zone.tc-p2 { right: var(--edge-r); }
 
 .tc-stick-base {
     width: 96px;
@@ -113,14 +221,15 @@ canvas {
     pointer-events: none;
 }
 
+/* --- Action buttons --- */
 .tc-btn {
     position: absolute;
-    width: 72px;
-    height: 72px;
+    width: 76px;
+    height: 76px;
     border-radius: 18px;
     border: none;
     background: rgba(0, 0, 0, 0.45);
-    font-size: 40px;
+    font-size: 42px;
     line-height: 1;
     display: flex;
     align-items: center;
@@ -136,7 +245,90 @@ canvas {
     transition-duration: 0.04s;
 }
 
-.tc-attack {
-    right: calc(env(safe-area-inset-right) + 36px);
-    bottom: calc(env(safe-area-inset-bottom) + 40px);
+/* 1 player: attack in the bottom-right corner */
+.tc-attack.tc-p1 {
+    right: calc(var(--edge-r) + 26px);
+    bottom: calc(var(--edge-b) + 36px);
+}
+
+/* 2 players: each kid gets a stick + button on their own side */
+#touch-controls[data-players="2"] .tc-attack.tc-p1 {
+    right: auto;
+    left: calc(var(--edge-l) + 156px);
+}
+
+.tc-attack.tc-p2 {
+    right: calc(var(--edge-r) + 156px);
+    bottom: calc(var(--edge-b) + 36px);
+}
+
+/* --- Pause button: top-centre, just under the HUD bar --- */
+.tc-pause {
+    position: absolute;
+    left: calc(var(--cv-left) + var(--cv-w) / 2 - 22px);
+    top: calc(var(--cv-top) + var(--cv-h) * 0.095 + 6px);
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    border: none;
+    background: rgba(0, 0, 0, 0.45);
+    color: #FFF;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    pointer-events: auto;
+    touch-action: manipulation;
+    cursor: pointer;
+}
+
+.tc-pause span {
+    width: 6px;
+    height: 18px;
+    border-radius: 2px;
+    background: #FFF;
+}
+
+/* --- Portrait phone: ask to rotate --- */
+.tc-rotate {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: #111;
+    color: #FFF;
+    font-size: 20px;
+    font-weight: bold;
+    text-align: center;
+    padding: 24px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    pointer-events: auto;
+}
+
+.tc-rotate-icon {
+    font-size: 64px;
+    animation: tc-rotate 1.8s ease-in-out infinite;
+}
+
+@keyframes tc-rotate {
+    0%, 20% { transform: rotate(0deg); }
+    50%, 80% { transform: rotate(-90deg); }
+    100% { transform: rotate(0deg); }
+}
+
+@media (orientation: portrait) and (max-width: 700px) {
+    #touch-controls.visible .tc-rotate {
+        display: flex;
+    }
+}
+
+/* Short landscape phones: shrink controls a little so they cover less of the playfield */
+@media (max-height: 420px) {
+    .tc-stick-zone { width: 130px; height: 130px; }
+    .tc-stick-base { width: 84px; height: 84px; }
+    .tc-stick-thumb { width: 36px; height: 36px; }
+    .tc-btn { width: 66px; height: 66px; font-size: 36px; }
+    #touch-controls[data-players="2"] .tc-attack.tc-p1 { left: calc(var(--edge-l) + 134px); }
+    .tc-attack.tc-p2 { right: calc(var(--edge-r) + 134px); }
 }

@@ -10,6 +10,8 @@ export class Input {
             if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ShiftRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyF'].includes(e.code)) {
                 e.preventDefault();
             }
+            // Remember the press even if the key is released before the next game tick.
+            if (!e.repeat && !this.keys[e.code]) this._pulses[e.code] = true;
             this.keys[e.code] = true;
         });
 

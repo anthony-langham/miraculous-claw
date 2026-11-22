@@ -3,6 +3,8 @@ export class HUD {
         this.messageText = '';
         this.messageTimer = 0;
         this.messageColor = '#FFF';
+        this.touch = false;       // set by the game when on-screen controls are in use
+        this.renderScale = 1;     // backing-store scale applied by the game each frame
     }
 
     showMessage(text, duration = 120, color = '#FFF') {
@@ -15,8 +17,12 @@ export class HUD {
         if (this.messageTimer > 0) this.messageTimer--;
     }
 
-    draw(ctx, players, levelName, canvasWidth, cheatMode = false) {
+    draw(ctx, players, levelName, fullWidth, cheatMode = false) {
         ctx.save();
+        // On phones the canvas is shown at ~half size, so blow the top bar up to stay readable.
+        const barScale = this.touch ? 1.7 : 1;
+        ctx.scale(barScale, barScale);
+        const canvasWidth = fullWidth / barScale;
 
         // Top bar background
         ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
@@ -84,12 +90,19 @@ export class HUD {
         ctx.font = '10px monospace';
         ctx.fillText(levelName, canvasWidth / 2, 30);
 
-        // Controls hint
-        ctx.fillStyle = 'rgba(255,255,255,0.3)';
-        ctx.font = '9px monospace';
-        ctx.fillText(this.touch ? 'JOYSTICK/🐞: Ladybug | WASD/F: Cat Noir' : 'ARROWS/R.SHIFT: Ladybug | WASD/F: Cat Noir', canvasWidth / 2, 38);
+        // Controls hint (keyboard only — on touch the controls are on screen)
+        if (!this.touch) {
+            ctx.fillStyle = 'rgba(255,255,255,0.3)';
+            ctx.font = '9px monospace';
+            ctx.fillText(players.length > 1 ? 'ARROWS/R.SHIFT: Ladybug | WASD/F: Cat Noir' : 'ARROWS/R.SHIFT: Ladybug', canvasWidth / 2, 38);
+        }
+
+        ctx.restore();
+        ctx.save();
 
         // Center message
+        {
+        const canvasWidth = fullWidth;
         if (this.messageTimer > 0) {
             const alpha = this.messageTimer < 30 ? this.messageTimer / 30 : 1;
             ctx.globalAlpha = alpha;
@@ -106,7 +119,22 @@ export class HUD {
 
             ctx.globalAlpha = 1;
         }
+        }
 
+        ctx.restore();
+    }
+
+    drawPaused(ctx, w, h) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+        ctx.fillRect(0, 0, w, h);
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#FFD700';
+        ctx.font = 'bold 64px monospace';
+        ctx.fillText('PAUSED', w / 2, h / 2 - 10);
+        ctx.fillStyle = '#FFF';
+        ctx.font = this.touch ? 'bold 30px monospace' : 'bold 20px monospace';
+        ctx.fillText(this.touch ? 'Tap to keep playing' : 'Press P or SPACE to keep playing', w / 2, h / 2 + 50);
         ctx.restore();
     }
 
@@ -149,29 +177,33 @@ export class HUD {
         ctx.beginPath(); ctx.arc(w / 2 + 144, 135 + bob, 3, 0, Math.PI * 2); ctx.fill();
 
         ctx.fillStyle = '#FF80AB';
-        ctx.font = '16px monospace';
-        ctx.fillText('Save Paris from the Akumas!', w / 2, 210);
+        ctx.font = this.touch ? '26px monospace' : '16px monospace';
+        ctx.fillText('Save Paris from the Akumas!', w / 2, this.touch ? 222 : 210);
 
         // 2 Player callout
-        ctx.fillStyle = '#4CAF50';
-        ctx.font = 'bold 14px monospace';
-        ctx.fillText('2 PLAYER CO-OP!', w / 2, 240);
-
-        if (Math.floor(frame / 30) % 2 === 0) {
-            ctx.fillStyle = '#FFF';
-            ctx.font = 'bold 20px monospace';
-            ctx.fillText(this.touch ? 'Tap to Start!' : 'Press SPACE to Start!', w / 2, 310);
+        if (!this.touch) {
+            ctx.fillStyle = '#4CAF50';
+            ctx.font = 'bold 14px monospace';
+            ctx.fillText('2 PLAYER CO-OP!', w / 2, 240);
         }
 
-        ctx.fillStyle = 'rgba(255,255,255,0.5)';
-        ctx.font = '11px monospace';
-        ctx.fillText(this.touch ? 'P1 Ladybug: Joystick + Ladybug button' : 'P1 Ladybug: Arrows + Right Shift', w / 2, 370);
-        ctx.fillText('P2 Cat Noir: WASD + F', w / 2, 388);
+        if (!this.touch) {
+            if (Math.floor(frame / 30) % 2 === 0) {
+                ctx.fillStyle = '#FFF';
+                ctx.font = 'bold 20px monospace';
+                ctx.fillText('Press SPACE to Start!', w / 2, 310);
+            }
+
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.font = '11px monospace';
+            ctx.fillText('P1 Ladybug: Arrows + Right Shift', w / 2, 370);
+            ctx.fillText('P2 Cat Noir: WASD + F', w / 2, 388);
+        }
 
         if (cheatMode) {
             ctx.fillStyle = '#76FF03';
             ctx.font = 'bold 16px monospace';
-            ctx.fillText('INVINCIBLE MODE ACTIVATED!', w / 2, 430);
+            ctx.fillText('INVINCIBLE MODE ACTIVATED!', w / 2, this.touch ? 690 : 430);
         }
     }
 
@@ -190,7 +222,7 @@ export class HUD {
 
         if (Math.floor(frame / 30) % 2 === 0) {
             ctx.fillStyle = '#FFD700';
-            ctx.font = 'bold 18px monospace';
+            ctx.font = this.touch ? 'bold 34px monospace' : 'bold 18px monospace';
             ctx.fillText(this.touch ? 'Tap to Try Again!' : 'Press SPACE to Try Again!', w / 2, 310);
         }
     }
@@ -198,7 +230,7 @@ export class HUD {
     drawVictory(ctx, w, h, score, frame) {
         // Reset all canvas state to be safe
         ctx.save();
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.setTransform(this.renderScale, 0, 0, this.renderScale, 0, 0);
         ctx.globalAlpha = 1;
 
         ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
@@ -258,7 +290,7 @@ export class HUD {
         // Play again hint
         if (Math.floor(frame / 30) % 2 === 0) {
             ctx.fillStyle = 'rgba(255,255,255,0.5)';
-            ctx.font = '14px monospace';
+            ctx.font = this.touch ? 'bold 24px monospace' : '14px monospace';
             ctx.fillText(this.touch ? 'Tap to Play Again' : 'Press SPACE to Play Again', w / 2, 700);
         }
 
@@ -360,7 +392,7 @@ export class HUD {
         ctx.fillText(levelName, w / 2, 230);
 
         ctx.fillStyle = '#FF80AB';
-        ctx.font = '14px monospace';
+        ctx.font = this.touch ? '24px monospace' : '14px monospace';
         ctx.fillText('Get ready!', w / 2, 280);
     }
 }
